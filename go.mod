@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/elazarl/goproxy v0.0.0-20220529153421-8ea89ba92021
-	github.com/opsdata/common-base v0.0.0-20220601030954-8dab606721ed
+	github.com/opsdata/common-base v0.0.0-20220606134340-c479ad17ff74
 	github.com/opsdata/elmt-api v0.0.0-20220607020038-a859bb6e0f10
 	github.com/opsdata/errors v0.0.0-20220529233903-2dd7d9106721
 	github.com/ory/ladon v1.2.0
@@ -30,7 +30,7 @@ require (
 	github.com/jinzhu/now v1.1.4 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
-	github.com/mattn/go-isatty v0.0.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.10 // indirect
 	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -38,7 +38,7 @@ require (
 	github.com/smartystreets/goconvey v1.7.2 // indirect
 	github.com/sony/sonyflake v1.0.0 // indirect
 	github.com/speps/go-hashids v2.0.0+incompatible // indirect
-	github.com/stretchr/testify v1.7.0 // indirect
+	github.com/stretchr/testify v1.7.1 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	golang.org/x/text v0.3.7 // indirect
