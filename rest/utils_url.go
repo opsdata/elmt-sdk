@@ -8,16 +8,18 @@ import (
 	"github.com/opsdata/common-base/pkg/scheme"
 )
 
-// DefaultServerURL converts a host, host:port, or URL string to the default base server API path
-// to use with a Client at a given API version following the standard conventions for a
-// IAM API.
-func DefaultServerURL(host, apiPath string, groupVersion scheme.GroupVersion,
-	defaultTLS bool) (*url.URL, string, error) {
+// DefaultServerURL
+// - convert a host, host:port, or URL string to the default base server API path
+// to use with a Client at a given API version following the standard conventions
+// for an ELMT API
+func DefaultServerURL(host, apiPath string, groupVersion scheme.GroupVersion, defaultTLS bool) (*url.URL, string, error) {
 	hostURL, err := url.Parse(host)
+
 	if err != nil || hostURL.Scheme == "" || hostURL.Host == "" {
-		requestURL := fmt.Sprintf("http://%s.marmotedu.com:8080", groupVersion.Group)
+		requestURL := fmt.Sprintf("http://%s.elmt.opsdata.cn:8080", groupVersion.Group)
+
 		if defaultTLS {
-			requestURL = fmt.Sprintf("https://%s.marmotedu.com:8443", groupVersion.Group)
+			requestURL = fmt.Sprintf("https://%s.elmt.opsdata.cn:8443", groupVersion.Group)
 		}
 
 		hostURL, err = url.Parse(requestURL)
@@ -46,7 +48,7 @@ func DefaultServerURL(host, apiPath string, groupVersion scheme.GroupVersion,
 }
 
 // DefaultVersionedAPIPath constructs the default path for the given group version, assuming the given
-// API path, following the standard conventions of the IAM API.
+// API path, following the standard conventions of the ELMT API.
 func DefaultVersionedAPIPath(apiPath string, groupVersion scheme.GroupVersion) string {
 	versionedAPIPath := path.Join("/", apiPath)
 
@@ -63,8 +65,6 @@ func DefaultVersionedAPIPath(apiPath string, groupVersion scheme.GroupVersion) s
 // defaultServerURLFor is shared between IsConfigTransportTLS and RESTClientFor. It
 // requires Host and Version to be set prior to being called.
 func defaultServerURLFor(config *Config) (*url.URL, string, error) {
-	// TODO: move the default to secure when the apiserver supports TLS by default
-	// config.Insecure is taken to mean "I want HTTPS but don't bother checking the certs against a CA."
 	hasCA := len(config.CAFile) != 0 || len(config.CAData) != 0
 	hasCert := len(config.CertFile) != 0 || len(config.CertData) != 0
 	defaultTLS := hasCA || hasCert || config.Insecure

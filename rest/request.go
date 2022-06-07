@@ -14,6 +14,7 @@ import (
 
 	"github.com/opsdata/common-base/pkg/auth"
 	"github.com/opsdata/common-base/pkg/runtime"
+
 	"github.com/opsdata/elmt-sdk/third_party/forked/gorequest"
 )
 
@@ -58,14 +59,17 @@ func NewRequest(c *RESTClient) *Request {
 		pathPrefix: pathPrefix,
 	}
 
+	// Check the count of auth methods:
+	// - 只能设置其中一个
+	// 1.basic auth
+	// 2.bearer token
+	// 3.secretID, secretKey
 	authMethod := 0
-
 	for _, fn := range []func() bool{c.content.HasBasicAuth, c.content.HasTokenAuth, c.content.HasKeyAuth} {
 		if fn() {
 			authMethod++
 		}
 	}
-
 	if authMethod > 1 {
 		r.err = fmt.Errorf(
 			"username/password or bearer token or secretID/secretKey may be set, but should use only one of them",
@@ -73,18 +77,18 @@ func NewRequest(c *RESTClient) *Request {
 		return r
 	}
 
-	// set authorization header
+	// Set authorization header
 	switch {
 	case c.content.HasBasicAuth():
 		r.SetHeader("Authorization", "Basic "+basicAuth(c.content.Username, c.content.Password))
 	case c.content.HasTokenAuth():
 		r.SetHeader("Authorization", fmt.Sprintf("Bearer %s", c.content.BearerToken))
 	case c.content.HasKeyAuth():
-		tokenString := auth.Sign(c.content.SecretID, c.content.SecretKey, "elmt-sdk-go", c.group+".opsdata.cn")
+		tokenString := auth.Sign(c.content.SecretID, c.content.SecretKey, "elmt-sdk", c.group+".elmt")
 		r.SetHeader("Authorization", fmt.Sprintf("Bearer %s", tokenString))
 	}
 
-	// set accept content header
+	// Set accept content header
 	switch {
 	case len(c.content.AcceptContentTypes) > 0:
 		r.SetHeader("Accept", c.content.AcceptContentTypes)
@@ -98,6 +102,19 @@ func NewRequest(c *RESTClient) *Request {
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+// SetHeader set header for a http request.
+func (r *Request) SetHeader(key string, values ...string) *Request {
+	if r.headers == nil {
+		r.headers = http.Header{}
+	}
+	r.headers.Del(key)
+
+	for _, value := range values {
+		r.headers.Add(key, value)
+	}
+	return r
 }
 
 // NewRequestWithClient creates a Request with an embedded RESTClient for use in test scenarios.
@@ -117,21 +134,22 @@ func (r *Request) Verb(verb string) *Request {
 	return r
 }
 
-// Prefix adds segments to the relative beginning to the request path. These
-// items will be placed before the optional Namespace, Resource, or Name sections.
-// Setting AbsPath will clear any previously set Prefix segments.
+// Prefix
+// - add segments to the relative beginning to the request path
+// - these items will be placed before the optional Namespace, Resource, or Name sections
+// - setting AbsPath will clear any previously set Prefix segments
 func (r *Request) Prefix(segments ...string) *Request {
 	if r.err != nil {
 		return r
 	}
 
 	r.pathPrefix = path.Join(r.pathPrefix, path.Join(segments...))
-
 	return r
 }
 
-// Suffix appends segments to the end of the path. These items will be placed after the prefix and optional
-// Namespace, Resource, or Name sections.
+// Suffix
+// - append segments to the end of the path
+// - these items will be placed after the prefix and optional Namespace, Resource, or Name sections
 func (r *Request) Suffix(segments ...string) *Request {
 	if r.err != nil {
 		return r
@@ -211,8 +229,36 @@ func (r *Request) Name(resourceName string) *Request {
 	return r
 }
 
-// AbsPath overwrites an existing path with the segments provided. Trailing slashes are preserved
-// when a single segment is passed.
+// IsValidPathSegmentName validates the name can be safely encoded as a path segment.
+func IsValidPathSegmentName(name string) []string {
+	for _, illegalName := range NameMayNotBe {
+		if name == illegalName {
+			return []string{fmt.Sprintf(`may not be '%s'`, illegalName)}
+		}
+	}
+
+	var errors []string
+
+	for _, illegalContent := range NameMayNotContain {
+		if strings.Contains(name, illegalContent) {
+			errors = append(errors, fmt.Sprintf(`may not contain '%s'`, illegalContent))
+		}
+	}
+
+	return errors
+}
+
+// NameMayNotBe specifies strings that cannot be used as names specified as
+// path segments (like the REST API or etcd store).
+var NameMayNotBe = []string{".", ".."}
+
+// NameMayNotContain specifies substrings that cannot be used in names specified
+// as path segments (like the REST API or etcd store).
+var NameMayNotContain = []string{"/", "%"}
+
+// AbsPath
+// - overwrite an existing path with the segments provided
+// - trailing slashes are preserved when a single segment is passed
 func (r *Request) AbsPath(segments ...string) *Request {
 	if r.err != nil {
 		return r
@@ -221,15 +267,15 @@ func (r *Request) AbsPath(segments ...string) *Request {
 	r.pathPrefix = path.Join(r.c.base.Path, path.Join(segments...))
 
 	if len(segments) == 1 && (len(r.c.base.Path) > 1 || len(segments[0]) > 1) && strings.HasSuffix(segments[0], "/") {
-		// preserve any trailing slashes for legacy behavior
+		// Preserve any trailing slashes for legacy behavior
 		r.pathPrefix += "/"
 	}
 
 	return r
 }
 
-// RequestURI overwrites existing path and parameters with the value of the provided server relative
-// URI.
+// RequestURI
+// - overwrite existing path and parameters with the value of the provided server relative URI
 func (r *Request) RequestURI(uri string) *Request {
 	if r.err != nil {
 		return r
@@ -265,21 +311,6 @@ func (r *Request) Param(paramName, s string) *Request {
 	return r.setParam(paramName, s)
 }
 
-// VersionedParams will take the provided object, serialize it to a map[string][]string using the
-// implicit RESTClient API version and the default parameter codec, and then add those as parameters
-// to the request. Use this to provide versioned query parameters from client libraries.
-// VersionedParams will not write query parameters that have omitempty set and are empty. If a
-// parameter has already been set it is appended to (Params and VersionedParams are additive).
-func (r *Request) VersionedParams(v interface{}) *Request {
-	if r.err != nil {
-		return r
-	}
-
-	r.c.Client.Query(v)
-
-	return r
-}
-
 func (r *Request) setParam(paramName, value string) *Request {
 	if r.params == nil {
 		r.params = make(url.Values)
@@ -287,20 +318,6 @@ func (r *Request) setParam(paramName, value string) *Request {
 
 	r.params[paramName] = append(r.params[paramName], value)
 
-	return r
-}
-
-// SetHeader set header for a http request.
-func (r *Request) SetHeader(key string, values ...string) *Request {
-	if r.headers == nil {
-		r.headers = http.Header{}
-	}
-
-	r.headers.Del(key)
-
-	for _, value := range values {
-		r.headers.Add(key, value)
-	}
 	return r
 }
 
@@ -321,6 +338,7 @@ func (r *Request) URL() *url.URL {
 	if len(r.resource) != 0 {
 		p = path.Join(p, strings.ToLower(r.resource))
 	}
+
 	// Join trims trailing slashes, so preserve r.pathPrefix's trailing slash
 	// for backwards compatibility if nothing was changed
 	if len(r.resourceName) != 0 || len(r.subpath) != 0 || len(r.subresource) != 0 {
@@ -342,7 +360,7 @@ func (r *Request) URL() *url.URL {
 		}
 	}
 
-	// timeout is handled specially here.
+	// Timeout is handled specially here
 	if r.timeout != 0 {
 		query.Set("timeout", r.timeout.String())
 	}
@@ -456,36 +474,9 @@ func combineErr(resp gorequest.Response, body []byte, errs []error) error {
 	return nil
 }
 
-// NameMayNotBe specifies strings that cannot be used as names specified as
-// path segments (like the REST API or etcd store).
-var NameMayNotBe = []string{".", ".."}
-
-// NameMayNotContain specifies substrings that cannot be used in names specified
-// as path segments (like the REST API or etcd store).
-var NameMayNotContain = []string{"/", "%"}
-
-// IsValidPathSegmentName validates the name can be safely encoded as a path segment.
-func IsValidPathSegmentName(name string) []string {
-	for _, illegalName := range NameMayNotBe {
-		if name == illegalName {
-			return []string{fmt.Sprintf(`may not be '%s'`, illegalName)}
-		}
-	}
-
-	var errors []string
-
-	for _, illegalContent := range NameMayNotContain {
-		if strings.Contains(name, illegalContent) {
-			errors = append(errors, fmt.Sprintf(`may not contain '%s'`, illegalContent))
-		}
-	}
-
-	return errors
-}
-
-// IsValidPathSegmentPrefix validates the name can be used as a prefix for a name
-// which will be encoded as a path segment. It does not check for exact matches
-// with disallowed names, since an arbitrary suffix might make the name valid.
+// IsValidPathSegmentPrefix
+// - validate the name can be used as a prefix for a name which will be encoded as a path segment
+// - it does not check for exact matches with disallowed names, since an arbitrary suffix might make the name valid
 func IsValidPathSegmentPrefix(name string) []string {
 	var errors []string
 
@@ -505,4 +496,19 @@ func ValidatePathSegmentName(name string, prefix bool) []string {
 	}
 
 	return IsValidPathSegmentName(name)
+}
+
+// VersionedParams will take the provided object, serialize it to a map[string][]string using the
+// implicit RESTClient API version and the default parameter codec, and then add those as parameters
+// to the request. Use this to provide versioned query parameters from client libraries.
+// VersionedParams will not write query parameters that have omitempty set and are empty. If a
+// parameter has already been set it is appended to (Params and VersionedParams are additive).
+func (r *Request) VersionedParams(v interface{}) *Request {
+	if r.err != nil {
+		return r
+	}
+
+	r.c.Client.Query(v)
+
+	return r
 }

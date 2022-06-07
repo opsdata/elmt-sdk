@@ -6,6 +6,7 @@ import (
 
 	"github.com/opsdata/common-base/pkg/runtime"
 	"github.com/opsdata/common-base/pkg/scheme"
+
 	"github.com/opsdata/elmt-sdk/third_party/forked/gorequest"
 )
 
@@ -19,6 +20,19 @@ type Interface interface {
 	APIVersion() scheme.GroupVersion
 }
 
+// TLSConfig holds the information needed to set up a TLS transport.
+type TLSConfig struct {
+	CAFile         string // Path of the PEM-encoded server trusted root certificates.
+	CertFile       string // Path of the PEM-encoded client certificate.
+	KeyFile        string // Path of the PEM-encoded client key.
+	ReloadTLSFiles bool   // Set to indicate that the original config provided files, and that they should be reloaded
+	Insecure       bool   // Server should be accessed without verifying the certificate. For testing only.
+	ServerName     string // Override for the server name passed to the server for SNI and used to verify certificates.
+	CAData         []byte // Bytes of the PEM-encoded server trusted root certificates. Supercedes CAFile.
+	CertData       []byte // Bytes of the PEM-encoded client certificate. Supercedes CertFile.
+	KeyData        []byte // Bytes of the PEM-encoded client key. Supercedes KeyFile.
+}
+
 // ClientContentConfig controls how RESTClient communicates with the server.
 type ClientContentConfig struct {
 	Username     string
@@ -28,9 +42,7 @@ type ClientContentConfig struct {
 	GroupVersion scheme.GroupVersion
 	Negotiator   runtime.ClientNegotiator
 
-	// Server requires Bearer authentication. This client will not attempt to use
-	// refresh tokens for an OAuth2 flow.
-	// TODO: demonstrate an OAuth2 compatible client.
+	// Server requires Bearer authentication.
 	BearerToken string
 
 	// Path to a file containing a BearerToken.
@@ -51,19 +63,6 @@ type ClientContentConfig struct {
 	TLSClientConfig
 }
 
-// TLSConfig holds the information needed to set up a TLS transport.
-type TLSConfig struct {
-	CAFile         string // Path of the PEM-encoded server trusted root certificates.
-	CertFile       string // Path of the PEM-encoded client certificate.
-	KeyFile        string // Path of the PEM-encoded client key.
-	ReloadTLSFiles bool   // Set to indicate that the original config provided files, and that they should be reloaded
-	Insecure       bool   // Server should be accessed without verifying the certificate. For testing only.
-	ServerName     string // Override for the server name passed to the server for SNI and used to verify certificates.
-	CAData         []byte // Bytes of the PEM-encoded server trusted root certificates. Supercedes CAFile.
-	CertData       []byte // Bytes of the PEM-encoded client certificate. Supercedes CertFile.
-	KeyData        []byte // Bytes of the PEM-encoded client key. Supercedes KeyFile.
-}
-
 // HasBasicAuth returns whether the configuration has basic authentication or not.
 func (c *ClientContentConfig) HasBasicAuth() bool {
 	return len(c.Username) != 0
@@ -79,30 +78,22 @@ func (c *ClientContentConfig) HasKeyAuth() bool {
 	return len(c.SecretID) != 0 && len(c.SecretKey) != 0
 }
 
-// RESTClient imposes common ELMT API conventions on a set of resource paths.
-// The baseURL is expected to point to an HTTP or HTTPS path that is the parent
-// of one or more resources. The server should return a decodable API resource
-// object, or an api.Status object which contains information about the reason for
-// any failure.
+// RESTClient
+// - impose common ELMT API conventions on a set of resource paths
 type RESTClient struct {
-	// base is the root URL for all invocations of the client
-	base *url.URL
-	// group stand for the client group, eg: elmt.api, elmt.authz
-	group string
-	// versionedAPIPath is a path segment connecting the base URL to the resource root
-	versionedAPIPath string
-	// content describes how a RESTClient encodes and decodes responses.
-	content ClientContentConfig
+	base             *url.URL            // the root URL for all invocations of the client
+	group            string              // stand for the client group, eg: elmt.api, elmt.authz
+	versionedAPIPath string              // a path segment connecting the base URL to the resource root
+	content          ClientContentConfig // describe how a RESTClient encodes and decodes responses
 
 	Client *gorequest.SuperAgent
 }
 
-// NewRESTClient creates a new RESTClient. This client performs generic REST functions
-// such as Get, Put, Post, and Delete on specified paths.
-func NewRESTClient(baseURL *url.URL,
-	versionedAPIPath string,
-	config ClientContentConfig,
-	client *gorequest.SuperAgent) (*RESTClient, error) {
+// NewRESTClient
+// - create a new RESTClient
+// - the client performs generic REST functions such as Get, Put, Post, and Delete on specified paths.
+func NewRESTClient(baseURL *url.URL, versionedAPIPath string,
+	config ClientContentConfig, client *gorequest.SuperAgent) (*RESTClient, error) {
 	if len(config.ContentType) == 0 {
 		config.ContentType = "application/json"
 	}

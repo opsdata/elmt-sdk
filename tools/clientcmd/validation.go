@@ -14,16 +14,11 @@ var (
 	ErrNoContext = errors.New("no context chosen")
 
 	// ErrEmptyConfig defines no configuration has been provided error.
-	ErrEmptyConfig = NewEmptyConfigError(
-		"no configuration has been provided, try setting ELMT_SERVER_ADDRESS environment variable",
-	)
+	ErrEmptyConfig = NewEmptyConfigError("no configuration has been provided")
 
 	// ErrEmptyServer defines a no server defined error.
-	ErrEmptyServer = errors.New("server has no server defined")
+	ErrEmptyServer = errors.New("no server has been defined")
 )
-
-// NewEmptyConfigError returns an error wrapping the given message which IsEmptyConfig()
-// will recognize as an empty config error.
 
 func NewEmptyConfigError(message string) error {
 	return &errEmptyConfig{message}
@@ -39,7 +34,6 @@ func (e *errEmptyConfig) Error() string {
 
 // IsEmptyConfig returns true if the provided error indicates the provided
 // configuration is empty.
-
 func IsEmptyConfig(err error) bool {
 	if t, ok := err.(errConfigurationInvalid); ok {
 		if len(t) != 1 {
@@ -57,7 +51,7 @@ func IsEmptyConfig(err error) bool {
 // errConfigurationInvalid is a set of errors indicating the configuration is invalid.
 type errConfigurationInvalid []error
 
-// errConfigurationInvalid implements error and Aggregate.
+// errConfigurationInvalid implements error and Aggregate interfaces.
 var (
 	_ error                = errConfigurationInvalid{}
 	_ utilerrors.Aggregate = errConfigurationInvalid{}
@@ -72,17 +66,16 @@ func newErrConfigurationInvalid(errs []error) error {
 	}
 }
 
-// Error implements the error interface.
+// Implement the error interface.
 func (e errConfigurationInvalid) Error() string {
 	return fmt.Sprintf("invalid configuration: %v", utilerrors.NewAggregate(e).Error())
 }
 
-// Errors implements the utilerrors.Aggregate interface.
+// Implement the utilerrors.Aggregate interface.
 func (e errConfigurationInvalid) Errors() []error {
 	return e
 }
 
-// Is implements the utilerrors.Aggregate interface.
 func (e errConfigurationInvalid) Is(target error) bool {
 	return e.visit(func(err error) bool {
 		return errors.Is(err, target)
@@ -127,12 +120,7 @@ func validateServerInfo(serverInfo Server) []error {
 		return []error{ErrEmptyServer}
 	}
 
-	/*
-		if len(serverInfo.Address) == 0 {
-			validationErrors = append(validationErrors, fmt.Errorf("no server found"))
-		}
-	*/
-	// Make sure CA data and CA file aren't both specified
+	// Make sure CA data and CA file are not both specified
 	if len(serverInfo.CertificateAuthority) != 0 && len(serverInfo.CertificateAuthorityData) != 0 {
 		validationErrors = append(
 			validationErrors,
@@ -190,11 +178,13 @@ func validateAuthInfo(authInfo AuthInfo) []error {
 		validationErrors = append(validationErrors,
 			fmt.Errorf("client-cert-data and client-cert are both specified. client-cert-data will override"))
 	}
+
 	// Make sure key data and file aren't both specified
 	if len(authInfo.ClientKey) != 0 && len(authInfo.ClientKeyData) != 0 {
 		validationErrors = append(validationErrors,
 			fmt.Errorf("client-key-data and client-key are both specified; client-key-data will override"))
 	}
+
 	// Make sure a key is specified
 	if len(authInfo.ClientKey) == 0 && len(authInfo.ClientKeyData) == 0 {
 		validationErrors = append(validationErrors,

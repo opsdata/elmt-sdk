@@ -15,17 +15,20 @@ type Server struct {
 	RetryInterval    time.Duration `yaml:"retry-interval,omitempty" mapstructure:"retry-interval,omitempty"`
 	Address          string        `yaml:"address,omitempty"        mapstructure:"address,omitempty"`
 
-	// TLSServerName is used to check server certificate. If TLSServerName is empty, the hostname used to contact the
-	// server is used.
+	// TLSServerName is used to check server certificate.
+	// If TLSServerName is empty, the hostname used to contact the server is used.
 	// +optional
 	TLSServerName string `yaml:"tls-server-name,omitempty" mapstructure:"tls-server-name,omitempty"`
-	// InsecureSkipTLSVerify skips the validity check for the server's certificate. This will make your HTTPS
-	// connections insecure.
+
+	// InsecureSkipTLSVerify skips the validity check for the server's certificate.
+	// This will make your HTTPS connections insecure.
 	// +optional
 	InsecureSkipTLSVerify bool `yaml:"insecure-skip-tls-verify,omitempty" mapstructure:"insecure-skip-tls-verify,omitempty"`
+
 	// CertificateAuthority is the path to a cert file for the certificate authority.
 	// +optional
 	CertificateAuthority string `yaml:"certificate-authority,omitempty" mapstructure:"certificate-authority,omitempty"`
+
 	// CertificateAuthorityData contains PEM-encoded certificate authority certificates.
 	// Overrides CertificateAuthority
 	// +optional
@@ -34,25 +37,32 @@ type Server struct {
 
 // AuthInfo contains information that describes identity information.
 type AuthInfo struct {
-	LocationOfOrigin  string
-	Username          string `yaml:"username,omitempty" mapstructure:"username,omitempty"`
-	Password          string `yaml:"password,omitempty" mapstructure:"password,omitempty"`
-	SecretID          string `yaml:"secret-id,omitempty"  mapstructure:"secret-id,omitempty"`
-	SecretKey         string `yaml:"secret-key,omitempty" mapstructure:"secret-key,omitempty"`
-	ClientCertificate string `yaml:"client-certificate,omitempty" mapstructure:"client-certificate,omitempty"`
+	LocationOfOrigin string
 
-	// ClientCertificateData contains PEM-encoded data from a client cert file for TLS. Overrides ClientCertificate
-	// +optional
-	ClientCertificateData string `yaml:"client-certificate-data,omitempty" mapstructure:"client-certificate-data,omitempty"`
-	// ClientKey is the path to a client key file for TLS.
-	// +optional
-	ClientKey string `yaml:"client-key,omitempty" mapstructure:"client-key,omitempty"`
-	// ClientKeyData contains PEM-encoded data from a client key file for TLS. Overrides ClientKey
-	// +optional
-	ClientKeyData string `yaml:"client-key-data,omitempty" mapstructure:"client-key-data,omitempty"`
+	Username  string `yaml:"username,omitempty" mapstructure:"username,omitempty"`
+	Password  string `yaml:"password,omitempty" mapstructure:"password,omitempty"`
+	SecretID  string `yaml:"secret-id,omitempty"  mapstructure:"secret-id,omitempty"`
+	SecretKey string `yaml:"secret-key,omitempty" mapstructure:"secret-key,omitempty"`
+
 	// Token is the bearer token for authentication to the elmt cluster.
 	// +optional
 	Token string `yaml:"token,omitempty" mapstructure:"token,omitempty"`
+
+	// ClientCertificate is the path to a client certificate file for TLS.
+	// +optional
+	ClientCertificate string `yaml:"client-certificate,omitempty" mapstructure:"client-certificate,omitempty"`
+
+	// ClientCertificateData contains PEM-encoded data from a client cert file for TLS. Overrides ClientCertificate.
+	// +optional
+	ClientCertificateData string `yaml:"client-certificate-data,omitempty" mapstructure:"client-certificate-data,omitempty"`
+
+	// ClientKey is the path to a client key file for TLS.
+	// +optional
+	ClientKey string `yaml:"client-key,omitempty" mapstructure:"client-key,omitempty"`
+
+	// ClientKeyData contains PEM-encoded data from a client key file for TLS. It overrides ClientKey.
+	// +optional
+	ClientKeyData string `yaml:"client-key-data,omitempty" mapstructure:"client-key-data,omitempty"`
 }
 
 // ZabbixInfo contains information that describes Zabbix JSON-RPC API information.
@@ -79,42 +89,55 @@ func NewConfig() *Config {
 	}
 }
 
-// ClientConfig is used to make it easy to get an api server client.
+// ClientConfig interface
+// - be used to make it easy to get an API server client
+// - it returns a complete client config
 type ClientConfig interface {
-	// ClientConfig returns a complete client config
 	ClientConfig() (*restclient.Config, error)
 }
 
-// DirectClientConfig wrap for Config.
 type DirectClientConfig struct {
 	config Config
 }
 
-// NewClientConfigFromConfig takes your Config and gives you back a ClientConfig.
-func NewClientConfigFromConfig(config *Config) ClientConfig {
-	return &DirectClientConfig{*config}
+// getServer returns the clientcmdapi.Server, or an error if a required server is not found.
+func (config *DirectClientConfig) getServer() Server {
+	return *config.config.Server
 }
 
-// NewClientConfigFromBytes takes your elmtconfig and gives you back a ClientConfig.
-func NewClientConfigFromBytes(configBytes []byte) (ClientConfig, error) {
-	config, err := Load(configBytes)
-	if err != nil {
-		return nil, err
+// getAuthInfo returns the clientcmdapi.AuthInfo, or an error if a required auth info is not found.
+func (config *DirectClientConfig) getAuthInfo() AuthInfo {
+	return *config.config.AuthInfo
+}
+
+// getZabbixInfo returns the clientcmdapi.ZabbixInfo, or an error if a required zabbix info is not found.
+func (config *DirectClientConfig) getZabbixInfo() ZabbixInfo {
+	return *config.config.ZabbixInfo
+}
+
+// ConfirmUsable
+// - look a particular context and determine if that particular part of the config is useable
+// - there might still be errors in the config, but no errors in the sections requested or referenced
+// - it does not return early so that it can find as many errors as possible.
+func (config *DirectClientConfig) ConfirmUsable() error {
+	validationErrors := make([]error, 0)
+
+	authInfo := config.getAuthInfo()
+	validationErrors = append(validationErrors, validateAuthInfo(authInfo)...)
+
+	server := config.getServer()
+	validationErrors = append(validationErrors, validateServerInfo(server)...)
+
+	// when direct client config is specified, and the only error is that no server is defined, we should
+	// return a standard "no config" error
+	if len(validationErrors) == 1 && validationErrors[0] == ErrEmptyServer {
+		return newErrConfigurationInvalid([]error{ErrEmptyConfig})
 	}
-	return &DirectClientConfig{*config}, nil
+
+	return newErrConfigurationInvalid(validationErrors)
 }
 
-// RESTConfigFromELMTConfig is a convenience method to give back a restconfig from your iamconfig bytes.
-// For programmatic access, this is what you want 80% of the time.
-func RESTConfigFromELMTConfig(configBytes []byte) (*restclient.Config, error) {
-	clientConfig, err := NewClientConfigFromBytes(configBytes)
-	if err != nil {
-		return nil, err
-	}
-	return clientConfig.ClientConfig()
-}
-
-// ClientConfig implements ClientConfig.
+// ClientConfig implements ClientConfig interface.
 func (config *DirectClientConfig) ClientConfig() (*restclient.Config, error) {
 	user := config.getAuthInfo()
 	server := config.getServer()
@@ -134,6 +157,8 @@ func (config *DirectClientConfig) ClientConfig() (*restclient.Config, error) {
 		Timeout:       server.Timeout,
 		MaxRetries:    server.MaxRetries,
 		RetryInterval: server.RetryInterval,
+
+		// TLS
 		TLSClientConfig: restclient.TLSClientConfig{
 			Insecure:   server.InsecureSkipTLSVerify,
 			ServerName: server.TLSServerName,
@@ -145,7 +170,7 @@ func (config *DirectClientConfig) ClientConfig() (*restclient.Config, error) {
 			CAData:     []byte(server.CertificateAuthorityData),
 		},
 
-		/* section for Zabbix integration */
+		// Zabbix JSON-RPC
 		ZabbixApiUrl:  zabbix.ApiUrl,
 		ZabbixApiUser: zabbix.ApiUser,
 		ZabbixApiPass: zabbix.ApiPass,
@@ -160,48 +185,29 @@ func (config *DirectClientConfig) ClientConfig() (*restclient.Config, error) {
 	return clientConfig, nil
 }
 
-// ConfirmUsable looks a particular context and determines if that particular part of
-// the config is useable. There might still be errors in the config, but no errors in the
-// sections requested or referenced.  It does not return early so that it can find as many errors as possible.
+func NewClientConfigFromConfig(config *Config) ClientConfig {
+	return &DirectClientConfig{*config}
+}
 
-func (config *DirectClientConfig) ConfirmUsable() error {
-	validationErrors := make([]error, 0)
-
-	authInfo := config.getAuthInfo()
-	validationErrors = append(validationErrors, validateAuthInfo(authInfo)...)
-
-	server := config.getServer()
-	validationErrors = append(validationErrors, validateServerInfo(server)...)
-
-	// when direct client config is specified, and our only error is that no server is defined, we should
-	// return a standard "no config" error
-	if len(validationErrors) == 1 && validationErrors[0] == ErrEmptyServer {
-		return newErrConfigurationInvalid([]error{ErrEmptyConfig})
+func NewClientConfigFromBytes(configBytes []byte) (ClientConfig, error) {
+	config, err := Load(configBytes)
+	if err != nil {
+		return nil, err
 	}
-
-	return newErrConfigurationInvalid(validationErrors)
+	return &DirectClientConfig{*config}, nil
 }
 
-// getServer returns the clientcmdapi.Cluster, or an error if a required cluster is not found.
-func (config *DirectClientConfig) getServer() Server {
-	return *config.config.Server
+func RESTConfigFromELMTConfig(configBytes []byte) (*restclient.Config, error) {
+	clientConfig, err := NewClientConfigFromBytes(configBytes)
+	if err != nil {
+		return nil, err
+	}
+	return clientConfig.ClientConfig()
 }
 
-// getAuthInfo returns the clientcmdapi.AuthInfo, or an error if a required auth info is not found.
-func (config *DirectClientConfig) getAuthInfo() AuthInfo {
-	return *config.config.AuthInfo
-}
-
-// getZabbixInfo returns the clientcmdapi.ZabbixInfo, or an error if a required zabbix info is not found.
-func (config *DirectClientConfig) getZabbixInfo() ZabbixInfo {
-	return *config.config.ZabbixInfo
-}
-
-// 通过加载yaml格式的配置文件来创建rest.Config类型的变量
-//
-// BuildConfigFromFlags is a helper function that builds configs from a master
-// url and an elmtconfig filepath.
-//
+// BuildConfigFromFlags
+// - a helper function that builds configs from a master url and an elmtconfig filepath
+// - 通过加载yaml格式的配置文件来创建rest.Config类型的变量
 func BuildConfigFromFlags(serverURL, elmtconfigPath string) (*restclient.Config, error) {
 	config, err := LoadFromFile(elmtconfigPath)
 	if err != nil {

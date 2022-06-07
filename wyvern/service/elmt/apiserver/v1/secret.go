@@ -9,17 +9,14 @@ import (
 	rest "github.com/opsdata/elmt-sdk/rest"
 )
 
-// The SecretExpansion interface allows manually adding extra methods to the SecretInterface.
-type SecretExpansion interface{}
-
-// SecretsGetter has a method to return a SecretInterface.
-// A group's client should implement this interface:
-// - 资源级别接口
+// SecretsGetter interface
+// - method to return a SecretInterface
+// - a group's client should implement this interface:
+//
 type SecretsGetter interface {
 	Secrets() SecretInterface
 }
 
-// SecretInterface has methods to work with Secret resources.
 type SecretInterface interface {
 	Create(ctx context.Context, secret *v1.Secret, opts metav1.CreateOptions) (*v1.Secret, error)
 	Update(ctx context.Context, secret *v1.Secret, opts metav1.UpdateOptions) (*v1.Secret, error)
@@ -27,22 +24,18 @@ type SecretInterface interface {
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.Secret, error)
 	List(ctx context.Context, opts metav1.ListOptions) (*v1.SecretList, error)
-	SecretExpansion
 }
 
-// secrets implements SecretInterface.
 type secrets struct {
 	client rest.Interface
 }
 
-// newSecrets returns a Secrets.
 func newSecrets(c *APIV1Client) *secrets {
 	return &secrets{
 		client: c.RESTClient(),
 	}
 }
 
-// Get takes name of the secret, and returns the corresponding secret object, and an error if there is any.
 func (c *secrets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.Secret, err error) {
 	result = &v1.Secret{}
 	err = c.client.Get().
@@ -55,7 +48,6 @@ func (c *secrets) Get(ctx context.Context, name string, options metav1.GetOption
 	return
 }
 
-// List takes label and field selectors, and returns the list of Secrets that match those selectors.
 func (c *secrets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.SecretList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
@@ -63,6 +55,7 @@ func (c *secrets) List(ctx context.Context, opts metav1.ListOptions) (result *v1
 	}
 
 	result = &v1.SecretList{}
+
 	err = c.client.Get().
 		Resource("secrets").
 		VersionedParams(opts).
@@ -73,11 +66,9 @@ func (c *secrets) List(ctx context.Context, opts metav1.ListOptions) (result *v1
 	return
 }
 
-// Create takes the representation of a secret and creates it.
-// Returns the server's representation of the secret, and an error, if there is any.
-func (c *secrets) Create(ctx context.Context, secret *v1.Secret,
-	opts metav1.CreateOptions) (result *v1.Secret, err error) {
+func (c *secrets) Create(ctx context.Context, secret *v1.Secret, opts metav1.CreateOptions) (result *v1.Secret, err error) {
 	result = &v1.Secret{}
+
 	err = c.client.Post().
 		Resource("secrets").
 		VersionedParams(opts).
@@ -88,14 +79,12 @@ func (c *secrets) Create(ctx context.Context, secret *v1.Secret,
 	return
 }
 
-// Update takes the representation of a secret and updates it.
-// Returns the server's representation of the secret, and an error, if there is any.
-func (c *secrets) Update(ctx context.Context, secret *v1.Secret,
-	opts metav1.UpdateOptions) (result *v1.Secret, err error) {
+func (c *secrets) Update(ctx context.Context, secret *v1.Secret, opts metav1.UpdateOptions) (result *v1.Secret, err error) {
 	result = &v1.Secret{}
+
 	err = c.client.Put().
 		Resource("secrets").
-		Name(secret.SecretName).
+		Name(secret.Name).
 		VersionedParams(opts).
 		Body(secret).
 		Do(ctx).

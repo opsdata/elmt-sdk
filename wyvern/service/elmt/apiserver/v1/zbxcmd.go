@@ -8,16 +8,17 @@ import (
 	rest "github.com/opsdata/elmt-sdk/rest"
 )
 
-type ZbxCmdExpansion interface{}
-
+// ZbxCmdGetter
+// - method to return a ZbxCmdInterface
+// - a group's client should implement this interface
+//
 type ZbxCmdGetter interface {
 	ZbxCmd() ZbxCmdInterface
 }
 
 type ZbxCmdInterface interface {
-	GetZbxItem(ctx context.Context, item_name string, opts metav1.GetOptions) (*v1.Indicator, error)
+	GetZbxItem(ctx context.Context, item_name string, opts metav1.GetOptions) (*v1.ZbxItem, error)
 	GetZbxHost(ctx context.Context, host_name string, opts metav1.GetOptions) (*v1.ZbxHost, error)
-	ZbxCmdExpansion
 }
 
 type zbxcmd struct {
@@ -30,8 +31,9 @@ func newZbxCmd(c *APIV1Client) *zbxcmd {
 	}
 }
 
-func (z *zbxcmd) GetZbxItem(ctx context.Context, item_name string, options metav1.GetOptions) (result *v1.Indicator, err error) {
+func (z *zbxcmd) GetZbxItem(ctx context.Context, item_name string, options metav1.GetOptions) (result *v1.ZbxItem, err error) {
 	result = &v1.Indicator{}
+
 	err = z.client.Get().
 		Resource("zbxitems").
 		Name(item_name).
@@ -44,6 +46,7 @@ func (z *zbxcmd) GetZbxItem(ctx context.Context, item_name string, options metav
 
 func (z *zbxcmd) GetZbxHost(ctx context.Context, host_name string, options metav1.GetOptions) (result *v1.ZbxHost, err error) {
 	result = &v1.ZbxHost{}
+
 	err = z.client.Get().
 		Resource("zbxhosts").
 		Name(host_name).

@@ -16,6 +16,7 @@ import (
 	"github.com/opsdata/common-base/pkg/runtime"
 	"github.com/opsdata/common-base/pkg/scheme"
 	"github.com/opsdata/common-base/pkg/version"
+
 	"github.com/opsdata/elmt-sdk/third_party/forked/gorequest"
 )
 
@@ -24,6 +25,7 @@ import (
 type Config struct {
 	Host    string
 	APIPath string
+	ContentConfig
 
 	// Server requires Basic authentication
 	Username  string
@@ -31,32 +33,26 @@ type Config struct {
 	SecretID  string
 	SecretKey string
 
-	// Server requires Bearer authentication. This client will not attempt to use
-	// refresh tokens for an OAuth2 flow.
-	// TODO: demonstrate an OAuth2 compatible client.
+	// Server requires Bearer authentication
 	BearerToken string
 
 	// Path to a file containing a BearerToken.
-	// If set, the contents are periodically read.
-	// The last successfully read value takes precedence over BearerToken.
 	BearerTokenFile string
 
 	// TLSClientConfig contains settings to enable transport layer security
 	TLSClientConfig
 
-	// UserAgent is an optional field that specifies the caller of this request.
+	// UserAgent is an optional field that specifies the caller of this request
 	UserAgent string
-	// The maximum length of time to wait before giving up on a server request. A value of zero means no timeout.
-	Timeout       time.Duration
+
+	// The maximum length of time to wait before giving up on a server request, and a value of zero
+	// means no timeout
+	Timeout time.Duration
+
 	MaxRetries    int
 	RetryInterval time.Duration
 
-	ContentConfig
-
-	/*
-	 * section added by shwlin (2022/02/13)
-	 * Zabbix requires JSON-RPC API information
-	 */
+	// JSON-RPC API information for Zabbix
 	ZabbixApiUrl  string
 	ZabbixApiUser string
 	ZabbixApiPass string
@@ -73,7 +69,7 @@ type ContentConfig struct {
 
 type sanitizedConfig *Config
 
-// GoString implements fmt.GoStringer and sanitizes sensitive fields of Config
+// GoString implements fmt.GoStringer and sanitizes(清洁/消毒) sensitive fields of Config
 // to prevent accidental leaking via logs.
 func (c *Config) GoString() string {
 	return c.String()
@@ -86,8 +82,9 @@ func (c *Config) String() string {
 		return "<nil>"
 	}
 
+	// Explicitly mark non-empty credential fields as redacted
 	cc := sanitizedConfig(CopyConfig(c))
-	// Explicitly mark non-empty credential fields as redacted.
+
 	if cc.Password != "" {
 		cc.Password = "--- REDACTED ---"
 	}
@@ -103,98 +100,11 @@ func (c *Config) String() string {
 	return fmt.Sprintf("%#v", cc)
 }
 
-// TLSClientConfig contains settings to enable transport layer security.
-type TLSClientConfig struct {
-	// Server should be accessed without verifying the TLS certificate. For testing only.
-	Insecure bool
-	// ServerName is passed to the server for SNI and is used in the client to check server
-	// ceritificates against. If ServerName is empty, the hostname used to contact the
-	// server is used.
-	ServerName string
-
-	// Server requires TLS client certificate authentication
-	CertFile string
-	// Server requires TLS client certificate authentication
-	KeyFile string
-	// Trusted root certificates for server
-	CAFile string
-
-	// CertData holds PEM-encoded bytes (typically read from a client certificate file).
-	// CertData takes precedence over CertFile
-	CertData []byte
-	// KeyData holds PEM-encoded bytes (typically read from a client certificate key file).
-	// KeyData takes precedence over KeyFile
-	KeyData []byte
-	// CAData holds PEM-encoded bytes (typically read from a root certificates bundle).
-	// CAData takes precedence over CAFile
-	CAData []byte
-
-	// NextProtos is a list of supported application level protocols, in order of preference.
-	// Used to populate tls.Config.NextProtos.
-	// To indicate to the server http/1.1 is preferred over http/2, set to ["http/1.1", "h2"] (though the server is free
-	// to ignore that preference).
-	// To use only http/1.1, set to ["http/1.1"].
-	NextProtos []string
-}
-
-var (
-	_ fmt.Stringer   = TLSClientConfig{}
-	_ fmt.GoStringer = TLSClientConfig{}
-)
-
-type sanitizedTLSClientConfig TLSClientConfig
-
-// GoString implements fmt.GoStringer and sanitizes sensitive fields of
-// TLSClientConfig to prevent accidental leaking via logs.
-func (c TLSClientConfig) GoString() string {
-	return c.String()
-}
-
-// String implements fmt.Stringer and sanitizes sensitive fields of
-// TLSClientConfig to prevent accidental leaking via logs.
-func (c TLSClientConfig) String() string {
-	// nolint: gosimple // no need
-	cc := sanitizedTLSClientConfig{
-		Insecure:   c.Insecure,
-		ServerName: c.ServerName,
-		CertFile:   c.CertFile,
-		KeyFile:    c.KeyFile,
-		CAFile:     c.CAFile,
-		CertData:   c.CertData,
-		KeyData:    c.KeyData,
-		CAData:     c.CAData,
-		NextProtos: c.NextProtos,
-	}
-	// Explicitly mark non-empty credential fields as redacted.
-	if len(cc.CertData) != 0 {
-		cc.CertData = []byte("--- TRUNCATED ---")
-	}
-
-	if len(cc.KeyData) != 0 {
-		cc.KeyData = []byte("--- REDACTED ---")
-	}
-
-	return fmt.Sprintf("%#v", cc)
-}
-
-// HasCA returns whether the configuration has a certificate authority or not.
-func (c TLSClientConfig) HasCA() bool {
-	return len(c.CAData) > 0 || len(c.CAFile) > 0
-}
-
-// HasCertAuth returns whether the configuration has certificate authentication or not.
-func (c TLSClientConfig) HasCertAuth() bool {
-	return (len(c.CertData) != 0 || len(c.CertFile) != 0) && (len(c.KeyData) != 0 || len(c.KeyFile) != 0)
-}
-
-// 创建RESTClient客户端
-//
-// RESTClientFor returns a RESTClient that satisfies the requested attributes on a client Config
-// object.
-//
-// A RESTClient created by this method is generic - it expects to operate on an API that follows
-// the ELMT conventions.
-//
+// RESTClientFor
+// - 创建RESTClient客户端
+// - return a RESTClient that satisfies the requested attributes on a client Config object
+// - a RESTClient created by this method is generic: it expects to operate on an API that follows
+// the ELMT conventions
 func RESTClientFor(config *Config) (*RESTClient, error) {
 	if config.GroupVersion == nil {
 		return nil, fmt.Errorf("GroupVersion is required when initializing a RESTClient")
@@ -212,13 +122,12 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 		return nil, err
 	}
 
-	// 生成TLS配置
 	tlsConfig, err := TLSConfigFor(config)
 	if err != nil {
 		return nil, err
 	}
 
-	// 创建gorequest客户端
+	// Only retry when get a server side error
 	client := gorequest.New().TLSClientConfig(tlsConfig).Timeout(config.Timeout).
 		Retry(config.MaxRetries, config.RetryInterval, http.StatusInternalServerError)
 
@@ -226,11 +135,11 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 	client.DoNotClearSuperAgent = true
 
 	var gv scheme.GroupVersion
+
 	if config.GroupVersion != nil {
 		gv = *config.GroupVersion
 	}
 
-	// 将客户端配置信息保存在变量中
 	clientContent := ClientContentConfig{
 		Username:           config.Username,
 		Password:           config.Password,
@@ -248,8 +157,10 @@ func RESTClientFor(config *Config) (*RESTClient, error) {
 	return NewRESTClient(baseURL, versionedAPIPath, clientContent, client)
 }
 
-// TLSConfigFor returns a tls.Config that will provide the transport level security defined
-// by the provided Config. Will return nil if no transport level security is requested.
+// TLSConfigFor
+// - return a tls.Config that will provide the transport level security defined
+// by the provided Config
+// - it will return nil if no transport level security is requested
 func TLSConfigFor(c *Config) (*tls.Config, error) {
 	if !(c.HasCA() || c.HasCertAuth() || c.Insecure || len(c.ServerName) > 0) {
 		return nil, nil
@@ -279,6 +190,7 @@ func TLSConfigFor(c *Config) (*tls.Config, error) {
 	}
 
 	var staticCert *tls.Certificate
+
 	// Treat cert as static if either key or cert was data, not a file
 	if c.HasCertAuth() {
 		// If key/cert were provided, verify them before setting up
@@ -309,28 +221,25 @@ func TLSConfigFor(c *Config) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// rootCertPool returns nil if caData is empty.  When passed along, this will mean "use system CAs".
-// When caData is not empty, it will be the ONLY information used in the CertPool.
+// rootCertPool
+// - return nil if caData is empty: when passed along, this will mean "use system CAs"
+// - when caData is not empty, it will be the ONLY information used in the CertPool
 func rootCertPool(caData []byte) *x509.CertPool {
-	// What we really want is a copy of x509.systemRootsPool, but that isn't exposed.  It's difficult to build (see the
-	// go
-	// code for a look at the platform specific insanity), so we'll use the fact that RootCAs == nil gives us the system
-	// values
-	// It doesn't allow trusting either/or, but hopefully that won't be an issue
 	if len(caData) == 0 {
 		return nil
 	}
 
-	// if we have caData, use it
+	// If we have caData, use it
 	certPool := x509.NewCertPool()
 	certPool.AppendCertsFromPEM(caData)
 
 	return certPool
 }
 
-// LoadTLSFiles copies the data from the CertFile, KeyFile, and CAFile fields into the CertData,
-// KeyData, and CAFile fields, or returns an error. If no error is returned, all three fields are
-// either populated or were empty to start.
+// LoadTLSFiles
+// - copy the data from the CertFile, KeyFile, and CAFile fields into the CertData,
+// KeyData, and CAFile fields, or returns an error
+// - if no error is returned, all three fields are either populated or were empty to start
 func LoadTLSFiles(c *Config) error {
 	var err error
 
@@ -352,8 +261,9 @@ func LoadTLSFiles(c *Config) error {
 	return nil
 }
 
-// dataFromSliceOrFile returns data from the slice (if non-empty), or from the file,
-// or an error if an error occurred reading the file.
+// dataFromSliceOrFile
+// - return data from the slice (if non-empty), or from the file
+// - or an error if an error occurred reading the file.
 func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 	if len(data) > 0 {
 		return base64.StdEncoding.DecodeString(string(data))
@@ -371,14 +281,54 @@ func dataFromSliceOrFile(data []byte, file string) ([]byte, error) {
 	return nil, nil
 }
 
-// SetIAMDefaults sets default values on the provided client config for accessing the
-// IAM API or returns an error if any of the defaults are impossible or invalid.
+// SetELMTDefaults
+// - set default values on the provided client config for accessing the
+// ELMT API
+// - or returns an error if any of the defaults are impossible or invalid
 func SetELMTDefaults(config *Config) error {
 	if len(config.UserAgent) == 0 {
 		config.UserAgent = DefaultUserAgent()
 	}
 
 	return nil
+}
+
+// DefaultUserAgent returns a User-Agent string built from static global vars.
+func DefaultUserAgent() string {
+	return buildUserAgent(
+		adjustCommand(os.Args[0]),
+		adjustVersion(version.Get().GitVersion),
+		gruntime.GOOS,
+		gruntime.GOARCH,
+		adjustCommit(version.Get().GitCommit))
+}
+
+// buildUserAgent builds a User-Agent string from given args.
+func buildUserAgent(command, version, os, arch, commit string) string {
+	return fmt.Sprintf(
+		"%s/%s (%s/%s) elmt/%s", command, version, os, arch, commit)
+}
+
+// adjustCommand returns the last component of the OS-specific command path for use in User-Agent.
+func adjustCommand(p string) string {
+	// Unlikely, but better than returning "".
+	if len(p) == 0 {
+		return "unknown"
+	}
+
+	return filepath.Base(p)
+}
+
+// adjustVersion strips "alpha", "beta", etc. from version in form
+// major.minor.patch-[alpha|beta|etc].
+func adjustVersion(v string) string {
+	if len(v) == 0 {
+		return "unknown"
+	}
+
+	seg := strings.SplitN(v, "-", 2)
+
+	return seg[0]
 }
 
 // adjustCommit returns sufficient significant figures of the commit's git hash.
@@ -394,46 +344,7 @@ func adjustCommit(c string) string {
 	return c
 }
 
-// adjustVersion strips "alpha", "beta", etc. from version in form
-// major.minor.patch-[alpha|beta|etc].
-func adjustVersion(v string) string {
-	if len(v) == 0 {
-		return "unknown"
-	}
-
-	seg := strings.SplitN(v, "-", 2)
-
-	return seg[0]
-}
-
-// adjustCommand returns the last component of the
-// OS-specific command path for use in User-Agent.
-func adjustCommand(p string) string {
-	// Unlikely, but better than returning "".
-	if len(p) == 0 {
-		return "unknown"
-	}
-
-	return filepath.Base(p)
-}
-
-// buildUserAgent builds a User-Agent string from given args.
-func buildUserAgent(command, version, os, arch, commit string) string {
-	return fmt.Sprintf(
-		"%s/%s (%s/%s) iam/%s", command, version, os, arch, commit)
-}
-
-// DefaultUserAgent returns a User-Agent string built from static global vars.
-func DefaultUserAgent() string {
-	return buildUserAgent(
-		adjustCommand(os.Args[0]),
-		adjustVersion(version.Get().GitVersion),
-		gruntime.GOOS,
-		gruntime.GOARCH,
-		adjustCommit(version.Get().GitCommit))
-}
-
-// AddUserAgent add a http User-Agent header.
+// AddUserAgent adds a http User-Agent header.
 func AddUserAgent(config *Config, userAgent string) *Config {
 	fullUserAgent := DefaultUserAgent() + "/" + userAgent
 	config.UserAgent = fullUserAgent
@@ -453,6 +364,9 @@ func CopyConfig(config *Config) *Config {
 		SecretKey:       config.SecretKey,
 		BearerToken:     config.BearerToken,
 		BearerTokenFile: config.BearerTokenFile,
+		UserAgent:       config.UserAgent,
+		Timeout:         config.Timeout,
+
 		TLSClientConfig: TLSClientConfig{
 			Insecure:   config.TLSClientConfig.Insecure,
 			ServerName: config.TLSClientConfig.ServerName,
@@ -464,7 +378,5 @@ func CopyConfig(config *Config) *Config {
 			CAData:     config.TLSClientConfig.CAData,
 			NextProtos: config.TLSClientConfig.NextProtos,
 		},
-		UserAgent: config.UserAgent,
-		Timeout:   config.Timeout,
 	}
 }
