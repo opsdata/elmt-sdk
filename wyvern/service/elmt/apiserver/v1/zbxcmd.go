@@ -17,7 +17,7 @@ type ZbxCmdGetter interface {
 }
 
 type ZbxCmdInterface interface {
-	GetZbxItem(ctx context.Context, item_name string, opts metav1.GetOptions) (*v1.ZbxItem, error)
+	GetZbxItem(ctx context.Context, item_name string, opts metav1.GetOptions) (*v1.Indicator, error)
 	GetZbxHost(ctx context.Context, host_name string, opts metav1.GetOptions) (*v1.ZbxHost, error)
 }
 
@@ -31,7 +31,7 @@ func newZbxCmd(c *APIV1Client) *zbxcmd {
 	}
 }
 
-func (z *zbxcmd) GetZbxItem(ctx context.Context, item_name string, options metav1.GetOptions) (result *v1.ZbxItem, err error) {
+func (z *zbxcmd) GetZbxItem(ctx context.Context, item_name string, options metav1.GetOptions) (result *v1.Indicator, err error) {
 	result = &v1.Indicator{}
 
 	err = z.client.Get().
