@@ -81,10 +81,17 @@ func (c *ClientContentConfig) HasKeyAuth() bool {
 // RESTClient
 // - impose common ELMT API conventions on a set of resource paths
 type RESTClient struct {
-	base             *url.URL            // the root URL for all invocations of the client
-	group            string              // stand for the client group, eg: elmt.api, elmt.authz
-	versionedAPIPath string              // a path segment connecting the base URL to the resource root
-	content          ClientContentConfig // describe how a RESTClient encodes and decodes responses
+	// the root URL for all invocations of the client, such as http://elmt.api.opsdata.cn:8080, etc.
+	base *url.URL
+
+	// a path segment connecting the base URL to the resource root, such as /v1, /v2, etc.
+	versionedAPIPath string
+
+	// stand for the client group, eg: elmt.api, elmt.authz
+	group string
+
+	// describe how a RESTClient encodes and decodes responses
+	content ClientContentConfig
 
 	Client *gorequest.SuperAgent
 }

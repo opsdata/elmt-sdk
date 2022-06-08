@@ -206,8 +206,10 @@ func RESTConfigFromELMTConfig(configBytes []byte) (*restclient.Config, error) {
 }
 
 // BuildConfigFromFlags
-// - a helper function that builds configs from a master url and an elmtconfig filepath
-// - 通过加载yaml格式的配置文件来创建rest.Config类型的变量
+// - a helper function that builds configs from a server url and .elmtconfig filepath
+//
+// - 示例: config, err := clientcmd.BuildConfigFromFlags("", "/root/.elmt/config.yaml")
+//
 func BuildConfigFromFlags(serverURL, elmtconfigPath string) (*restclient.Config, error) {
 	config, err := LoadFromFile(elmtconfigPath)
 	if err != nil {
