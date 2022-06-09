@@ -14,6 +14,7 @@ type APIV1Interface interface {
 	RESTClient() rest.Interface
 	UsersGetter
 	SecretsGetter
+	PoliciesGetter
 	ZbxCmdGetter
 }
 
@@ -40,6 +41,10 @@ func (c *APIV1Client) Users() UserInterface {
 
 func (c *APIV1Client) Secrets() SecretInterface {
 	return newSecrets(c)
+}
+
+func (c *APIV1Client) Policies() PolicyInterface {
+	return newPolicies(c)
 }
 
 func (c *APIV1Client) ZbxCmd() ZbxCmdInterface {

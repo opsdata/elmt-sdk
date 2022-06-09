@@ -53,7 +53,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("Created user %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Created user %q.\n", ret.Name)
 
 	// Delete secret
 	defer func() {
@@ -73,7 +73,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	fmt.Printf("Get user %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Get user %q.\n", ret.Name)
 
 	// Update user
 	prompt()

@@ -54,7 +54,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("Created secret %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Created secret %q.\n", ret.Name)
 
 	// Delete secret
 	defer func() {
@@ -74,7 +74,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	fmt.Printf("Get secret %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Get secret %q.\n", ret.Name)
 
 	// Update secret
 	prompt()

@@ -68,7 +68,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("Created policy %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Created policy %q.\n", ret.Name)
 
 	// Delete policy
 	defer func() {
@@ -87,7 +87,7 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("Get policy %q.\n", ret.GetObjectMeta().GetName())
+	fmt.Printf("Get policy %q.\n", ret.Name)
 
 	// Update policy
 	prompt()
